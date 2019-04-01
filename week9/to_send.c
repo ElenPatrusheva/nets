@@ -294,8 +294,8 @@ void * server(void * i){
     pthread_t tid[20];
     int ind;
     while(1){
-        ind = -1;
-        if (listen(sockfd, 3) != 0){
+        ind = 0;
+        if (listen(sockfd, 20) != 0){
             //printf("Listen: failed\n");
             exit(0);
         }
@@ -310,6 +310,7 @@ void * server(void * i){
         else{
             //printf("Accept: success\n");
         }
+
         while(ind == -1){
             for (int i = 0; i < 20; i++){
                 pthread_mutex_lock(&thread_mutex);
@@ -525,7 +526,7 @@ int ping(struct sockaddr_in server_to_call){
 void * sync_network(void * args){
     while(1){
         printf("\n");
-        sleep(2);
+        sleep(1);
         for (int i = 0; i < numb_of_nodes; i++){
             ping(nodes[i]->addr);
         }
@@ -564,6 +565,7 @@ int init(){
     unsigned long port;
     scanf("%lu", &port);
     this_host.sin_port = htons(port);
+    numb_of_nodes = 0;
     set_my_files();
     return 0;
 }
@@ -573,16 +575,13 @@ int is_root(){
 }
 
 int main(int argc, char **argv){
-    if (argc != 4){
+    if (argc != 3){
         printf("Incorrect number of argumets\n");
         exit(0);
     }
-    numb_of_nodes = 0;
-    strcpy(root_name, argv[1]);
-    printf("root name: %s\n", root_name); 
     root.sin_family = AF_INET;
-    root.sin_addr.s_addr = inet_addr(argv[2]);
-    root.sin_port = htons(strtoul(argv[3], (char **)NULL, 10));//not sure
+    root.sin_addr.s_addr = inet_addr(argv[1]);
+    root.sin_port = htons(strtoul(argv[2], (char **)NULL, 10));//not sure
     init();
     
     if (!is_root()){
@@ -593,11 +592,6 @@ int main(int argc, char **argv){
         else{
             printf("Not root. Connected to network\n");
         }
-        struct Node * root_node = (struct Node *) malloc(sizeof(struct Node *));
-        strcpy(root_node->name, root_name);
-        root_node->addr = root;
-        nodes[numb_of_nodes] = root_node;
-        numb_of_nodes++;
     }
     else {
         printf("Yeah, I am a root\n");
