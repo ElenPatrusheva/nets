@@ -74,11 +74,11 @@ void add_node(char * node_info){
     }
     
     strcpy(port, ptr);
-    ptr = strtok(NULL, delim);
-    if (ptr != NULL){
+    //ptr = strtok(NULL, delim);
+    /*if (ptr != NULL){
         printf("Parse node: incorrect format: smth excess\n");
         return;
-    }
+    }*/
     struct Node * new_node = (struct Node *) malloc(sizeof(struct Node));
     strcpy(new_node->name, name);
     new_node->addr.sin_family = AF_INET;
@@ -506,10 +506,10 @@ int ping(struct sockaddr_in server_to_call){
 
         get_info(node_info, nodes[i]);
         printf("Node number %d info is:%s\n", i, node_info);
-        if (nodes[i]->addr.sin_addr.s_addr == server_to_call.sin_addr.s_addr &&
+        /*if (nodes[i]->addr.sin_addr.s_addr == server_to_call.sin_addr.s_addr &&
                 nodes[i]->addr.sin_port == server_to_call.sin_port){
             continue;
-        }
+        }*/
         if (send(connfd, node_info, BUFFER, 0) == -1){
             //printf("Node %d info sending: fail\n", i);
             close(connfd);
