@@ -17,6 +17,7 @@
 #define NET_SIZE 200
 #define IP 16
 #define PORT 6
+
 struct sockaddr_in root, this_host;
 struct Node{
     int numb_of_files;
@@ -25,7 +26,6 @@ struct Node{
     char files[FILE_NUMBER][BUFFER];
 };
 
-pthread_t tid[THREADS];
 char root_name[HOST_NAME];
 int tid_is_free[THREADS];
 int numb_of_nodes;
@@ -34,15 +34,15 @@ char this_name[HOST_NAME];
 char my_files[FILE_NUMBER][BUFFER];
 struct Node * nodes[NET_SIZE]; //incorrect infa 100
 pthread_mutex_t thread_mutex;
+pthread_t tid[THREADS];
 
 int node_ind(struct Node * new_node){
     for (int i = 0; i < numb_of_nodes; i++){
-        if ((nodes[i]->addr.sin_addr.s_addr == new_node->addr.sin_addr.s_addr && new_node->addr.sin_port == nodes[i]->addr.sin_port) && strcmp(nodes[i]->name, new_node->name)==0){
+        if (nodes[i]->addr.sin_addr.s_addr == new_node->addr.sin_addr.s_addr && new_node->addr.sin_port == nodes[i]->addr.sin_port){
             //printf("Parse node: this node is already known\n");
             return i;
         }
     }
-    //printf("Parse node: this node is new\n");
     return -1;
 }
 
@@ -57,26 +57,26 @@ void add_node(char * node_info){
     strcpy(tmp, node_info);
     char name[HOST_NAME], ip[IP], port[PORT];
     if(ptr == NULL){
-        //printf("Parse node: incorrect format: %s\n", tmp);
+        printf("Parse node: incorrect format: %s\n", tmp);
         return;
     }
     strcpy(name, ptr);
     ptr = strtok(NULL, delim);
     if(ptr == NULL){
-        //printf("Parse node: incorrect format: %s\n", tmp);
+        printf("Parse node: incorrect format: %s\n", tmp);
         return;
     }
     strcpy(ip, ptr);
     ptr = strtok(NULL, delim);
     if(ptr == NULL){
-        //printf("Parse node: incorrect format: %s\n", tmp);
+        printf("Parse node: incorrect format: %s\n", tmp);
         return;
     }
     
     strcpy(port, ptr);
     ptr = strtok(NULL, delim);
     if (ptr != NULL){
-        //printf("Parse node: incorrect format: smth excess\n");
+        printf("Parse node: incorrect format: smth excess\n");
         return;
     }
     struct Node * new_node = (struct Node *) malloc(sizeof(struct Node));
@@ -91,52 +91,46 @@ void add_node(char * node_info){
     }
     int index = node_ind(new_node);
     if (index  == -1){ 
-        new_node->numb_of_files = 0;
         nodes[numb_of_nodes] = new_node;
         numb_of_nodes ++;
-        return;
     }   
-    nodes[index] = new_node;
 }
 
 void add_client(char * client_info){
     char delim[] = ":";
-
     char tmp[BUFFER];
     strcpy(tmp, client_info);
-
-
     char *ptr = strtok(client_info, delim);
     char name[HOST_NAME], ip[IP], port[PORT];
     if(ptr == NULL){
-        //printf("Parse node: incorrect format: %s\n", tmp ) ;
+        printf("Parse node: incorrect format: %s\n", tmp ) ;
         return;
     }
     strcpy(name, ptr);
-    //printf("Client name: %s\n", name);
+    printf("Client name: %s\n", name);
     ptr = strtok(NULL, delim);
     if(ptr == NULL){
-        //printf("Parse node: incorrect format: %s\n", tmp);
+        printf("Parse node: incorrect format: %s\n", tmp);
         return;
     }
     strcpy(ip, ptr);
-    //printf("Client ip: %s\n", ip);
+    printf("Client ip: %s\n", ip);
     ptr = strtok(NULL, delim);
     if(ptr == NULL){
-        //printf("Parse node: no_files: %s\n",tmp);
+        printf("Parse node: no_files: %s\n",tmp);
         return;
     }
     strcpy(port, ptr);
-    //printf("Client port: %s\n", port);
+    printf("Client port: %s\n", port);
     char node_info[BUFFER];
     ptr = strtok(NULL, delim);
     int no_files = 0;
     if (ptr == NULL){
         no_files = 1;
-        //printf("No_files:\n");
+        printf("No_files:\n");
     }
     else{
-        //printf("Files :%s\n", ptr);
+        printf("Files :%s\n", ptr);
     }
     struct Node * new_node = (struct Node *) malloc(sizeof(struct Node));
     strcpy(new_node->name, name);
@@ -150,7 +144,6 @@ void add_client(char * client_info){
     if(! no_files){
         strcpy(str, ptr);
         char * new_ptr = strtok(str, new_delim);
-        //printf("Flag: %s\n", new_ptr);
         while (new_ptr != NULL){
             strcpy(new_node->files[new_node->numb_of_files], new_ptr);
             new_node->numb_of_files++;
@@ -159,7 +152,6 @@ void add_client(char * client_info){
     }
     int index = node_ind(new_node);
     if (index == -1){ //no such node
-        //new_node->numb_of_files = 0;
         nodes[numb_of_nodes] = new_node;
         numb_of_nodes ++;
         return;
@@ -264,16 +256,16 @@ void * clientThread(void * _sockfd){
     }
     close(sockfd);
     pthread_t thread = pthread_self();
-    pthread_mutex_lock(&thread_mutex);
     for (int i = 0; i < THREADS; i++){
+        pthread_mutex_lock(&thread_mutex);
         if (thread == tid[i]){
             tid_is_free[i] = 1;
             tid[i] = 0;
             pthread_mutex_unlock(&thread_mutex);
             return NULL;
         }
+        pthread_mutex_unlock(&thread_mutex);
     }
-    pthread_mutex_unlock(&thread_mutex);
     return NULL;
 
 }
@@ -324,6 +316,7 @@ void * server(void * i){
                 if (tid_is_free[i]){
                     ind = i;
                     tid_is_free[i] = 0;
+                    pthread_mutex_unlock(&thread_mutex);
                     break;
                 }
             }
@@ -334,127 +327,9 @@ void * server(void * i){
         if (pthread_create(&tid[ind], NULL, clientThread, &connfd) != 0){
             printf("Thread creation: fail\n");
         }
-        pthread_mutex_unlock(&thread_mutex);
     }
     close(sockfd);
-}
 
-void set_my_files(){
-    const char * pattern = "./*.txt";     
-    glob_t pglob;
-    glob(pattern, GLOB_ERR, NULL, &pglob);
-    char file_name[BUFFER];
-    numb_of_files = 0;
-    for (int i = 0; i < pglob.gl_pathc; i++){
-        strcpy(file_name, pglob.gl_pathv[i]);
-        memmove(file_name, file_name + 2, strlen(file_name));
-        strcpy(my_files[numb_of_files], file_name);
-        numb_of_files ++;
-    }
-}
-
-int init(){    
-    char name [HOST_NAME];
-    printf("Enter this host name: ");
-    scanf("%s", name);
-    strcpy(this_name, name);
-    char ip[IP];
-    printf("Enter this ip: ");
-    scanf("%s", ip);
-    this_host.sin_family = AF_INET;
-    this_host.sin_addr.s_addr = inet_addr(ip);
-    printf("Enter this port: ");
-    unsigned long port;
-    scanf("%lu", &port);
-    this_host.sin_port = htons(port);
-    set_my_files();
-    return 0;
-}
-
-void get_my_info(char * info){ 
-    sprintf(info, "%s:%s:%u:", this_name, inet_ntoa(this_host.sin_addr), ntohs(this_host.sin_port));  
-    for(int i = 0; i < numb_of_files; i++){
-        strcat(info, my_files[i]);
-        if(i != numb_of_files - 1){
-            strcat(info, ",");
-        }
-    }
-}
-
-void get_info(char * info, struct Node * node){
-    sprintf(info, "%s:%s:%u:", node->name, inet_ntoa(node->addr.sin_addr), ntohs(node->addr.sin_port));
-}
-
-int ping(struct sockaddr_in server_to_call){
-    printf("I want to ping server. Ip: %s. Port: %u\n", inet_ntoa(server_to_call.sin_addr), ntohs(server_to_call.sin_port)); 
-    int connfd;
-    //struct sockaddr_in client;
-    connfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (connfd < 0){
-        //printf("Ping: sock creation: fail\n");
-        return 1;
-    }
-    else{
-        //printf("Ping: sock creation: success\n");
-    }
-    if (connect(connfd, (struct sockaddr *)&server_to_call, sizeof(server_to_call)) != 0){
-        //printf("Ping: connect: fail\n");
-        return 2;
-    }
-    else {
-        //printf("Ping: connect: success\n");
-    }
-    int message = 1;
-    if (send(connfd, &message, sizeof(message), 0) == -1){
-        //printf("Send 1: fail\n");
-        close(connfd);
-        return 1;
-    }
-    else{
-        //printf("Send 1: success\n");
-    }
-    char my_info[BUFFER];
-    get_my_info(my_info);
-    //printf("%s\n\n\n", my_info);
-    if (send(connfd, my_info, BUFFER, 0) == -1){
-        //printf("Send node info: fail\n");
-        close(connfd);
-        return 1;
-    }
-    else{
-        //printf("Send node info: success\n");
-    }
-    if (send(connfd, &numb_of_nodes, sizeof(int), 0) == -1){
-        //printf("Send number of nodes: fail\n");
-        close(connfd);
-        return 1;
-    }
-    else{
-        //printf("Send number of nodes: success\n");
-    }
-    int n_nodes = numb_of_nodes;
-    char node_info[BUFFER];
-    for (int i = 0; i < n_nodes; i++){
-        if (nodes[i]->addr.sin_addr.s_addr == server_to_call.sin_addr.s_addr &&
-                nodes[i]->addr.sin_port == server_to_call.sin_port){
-            continue;
-        }
-        get_info(node_info, nodes[i]);
-        if (send(connfd, node_info, BUFFER, 0) == -1){
-            //printf("Node %d info sending: fail\n", i);
-            close(connfd);
-            return 1;
-        }
-        else{
-            //printf("Node %d info sending: success\n", i);
-        }
-    }
-    close(connfd);
-    return 0;
-}
-
-int connect_to_network(){
-    return ping(root);
 }
 
 int request_from(struct sockaddr_in server_to_call,char *file_name){
@@ -550,7 +425,7 @@ void client(){
         if (command == 1){
             exit(0);
         }
-        if (command == 0){
+        else if (command == 0){
             printf("Please enter the file name\n");
             char file_name[BUFFER];
             scanf("%s", file_name);
@@ -562,17 +437,139 @@ void client(){
     }
 }
 
-int is_root(){
-    return ((root.sin_addr.s_addr == this_host.sin_addr.s_addr) && (root.sin_port == this_host.sin_port));
+void get_my_info(char * info){ 
+    sprintf(info, "%s:%s:%u:", this_name, inet_ntoa(this_host.sin_addr), ntohs(this_host.sin_port));  
+    for(int i = 0; i < numb_of_files; i++){
+        strcat(info, my_files[i]);
+        if(i != numb_of_files - 1){
+            strcat(info, ",");
+        }
+    }
+}
+
+void get_info(char * info, struct Node * node){
+    sprintf(info, "%s:%s:%u:", node->name, inet_ntoa(node->addr.sin_addr), ntohs(node->addr.sin_port));
+}
+
+int ping(struct sockaddr_in server_to_call){
+    printf("I want to ping server. Ip: %s. Port: %u\n", inet_ntoa(server_to_call.sin_addr), ntohs(server_to_call.sin_port)); 
+    int connfd;
+    //struct sockaddr_in client;
+    connfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (connfd < 0){
+        //printf("Ping: sock creation: fail\n");
+        return 1;
+    }
+    else{
+        //printf("Ping: sock creation: success\n");
+    }
+    if (connect(connfd, (struct sockaddr *)&server_to_call, sizeof(server_to_call)) != 0){
+        //printf("Ping: connect: fail\n");
+        return 2;
+    }
+    else {
+        //printf("Ping: connect: success\n");
+    }
+    int message = 1;
+    if (send(connfd, &message, sizeof(message), 0) == -1){
+        //printf("Send 1: fail\n");
+        close(connfd);
+        return 1;
+    }
+    else{
+        //printf("Send 1: success\n");
+    }
+    char my_info[BUFFER];
+    get_my_info(my_info);
+    //printf("%s\n\n\n", my_info);
+    printf("MY info is: %s\n", my_info);
+    if (send(connfd, my_info, BUFFER, 0) == -1){
+        //printf("Send node info: fail\n");
+        close(connfd);
+        return 1;
+    }
+    else{
+        //printf("Send node info: success\n");
+    }
+    if (send(connfd, &numb_of_nodes, sizeof(int), 0) == -1){
+        //printf("Send number of nodes: fail\n");
+        close(connfd);
+        return 1;
+    }
+    else{
+        //printf("Send number of nodes: success\n");
+    }
+    int n_nodes = numb_of_nodes;
+    char node_info[BUFFER];
+    for (int i = 0; i < n_nodes; i++){
+
+        get_info(node_info, nodes[i]);
+        printf("Node number %d info is:%s\n", i, node_info);
+        if (nodes[i]->addr.sin_addr.s_addr == server_to_call.sin_addr.s_addr &&
+                nodes[i]->addr.sin_port == server_to_call.sin_port){
+            continue;
+        }
+        if (send(connfd, node_info, BUFFER, 0) == -1){
+            //printf("Node %d info sending: fail\n", i);
+            close(connfd);
+            return 1;
+        }
+        else{
+            //printf("Node %d info sending: success\n", i);
+        }
+    }
+    close(connfd);
+    return 0;
 }
 
 void * sync_network(void * args){
     while(1){
-        sleep(3);
+        printf("\n");
+        sleep(2);
         for (int i = 0; i < numb_of_nodes; i++){
             ping(nodes[i]->addr);
         }
     }
+}
+
+int connect_to_network(){
+    return ping(root);
+}
+
+void set_my_files(){
+    const char * pattern = "./*.txt";     
+    glob_t pglob;
+    glob(pattern, GLOB_ERR, NULL, &pglob);
+    char file_name[BUFFER];
+    numb_of_files = 0;
+    for (int i = 0; i < pglob.gl_pathc; i++){
+        strcpy(file_name, pglob.gl_pathv[i]);
+        memmove(file_name, file_name + 2, strlen(file_name));
+        strcpy(my_files[numb_of_files], file_name);
+        numb_of_files ++;
+    }
+}
+
+int init(){    
+    char name [HOST_NAME];
+    printf("Enter this host name: ");
+    scanf("%s", name);
+    strcpy(this_name, name);
+    char ip[IP];
+    printf("Enter this ip: ");
+    scanf("%s", ip);
+    this_host.sin_family = AF_INET;
+    this_host.sin_addr.s_addr = inet_addr(ip);
+    printf("Enter this port: ");
+    unsigned long port;
+    scanf("%lu", &port);
+    this_host.sin_port = htons(port);
+    set_my_files();
+    return 0;
+}
+
+int is_root(){
+    return ((root.sin_addr.s_addr == this_host.sin_addr.s_addr) && (root.sin_port == this_host.sin_port));
 }
 
 int main(int argc, char **argv){
@@ -582,6 +579,7 @@ int main(int argc, char **argv){
     }
     numb_of_nodes = 0;
     strcpy(root_name, argv[1]);
+    printf("root name: %s\n", root_name); 
     root.sin_family = AF_INET;
     root.sin_addr.s_addr = inet_addr(argv[2]);
     root.sin_port = htons(strtoul(argv[3], (char **)NULL, 10));//not sure
@@ -608,10 +606,10 @@ int main(int argc, char **argv){
     pthread_t server_thread;
     pthread_t ping_thread;
     if (pthread_create(&server_thread, NULL, server, NULL) != 0){
-        printf("server_thread creation: fail\n");
+        printf("Server_thread creation: fail\n");
     }
     else{
-        printf("server thread creation: success\n");
+        printf("Server thread creation: success\n");
     }
     if (pthread_create(&ping_thread, NULL, sync_network, NULL) != 0){
         printf("Synchronization thread creation: fail\n");
@@ -620,7 +618,4 @@ int main(int argc, char **argv){
         printf("Synchronization thread creation: success\n");
     }
     client();
-    while(1){
-    }
-    //close(server_thread);
 }
