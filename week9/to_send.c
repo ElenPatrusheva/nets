@@ -17,7 +17,6 @@
 #define NET_SIZE 200
 #define IP 16
 #define PORT 6
-
 struct sockaddr_in root, this_host;
 struct Node{
     int numb_of_files;
@@ -33,8 +32,8 @@ int numb_of_nodes;
 int numb_of_files;
 char this_name[HOST_NAME];
 char my_files[FILE_NUMBER][BUFFER];
-pthread_mutex_t thread_mutex;
 struct Node * nodes[NET_SIZE]; //incorrect infa 100
+pthread_mutex_t thread_mutex;
 
 int node_ind(struct Node * new_node){
     for (int i = 0; i < numb_of_nodes; i++){
@@ -232,6 +231,7 @@ void recv_file_s(int sockfd){
     else{
         printf("Send numb of words: %d", numb_of_words);
     }
+
 	FILE *fp = fopen(file_name, "r");
     char word[BUFFER];
     for (int i = 0; i < numb_of_words; i++){
@@ -242,10 +242,12 @@ void recv_file_s(int sockfd){
             return;
         }
     }
+    fclose(fp);
 }
 
 void * clientThread(void * _sockfd){
     int sockfd = *((int *)_sockfd);
+    //printf ("%d",sockfd);
     int command;
     if(recv(sockfd, &command, sizeof(int), 0) == -1){
         //printf("Recv command from client:fail\n");
@@ -261,17 +263,17 @@ void * clientThread(void * _sockfd){
         recv_file_s(sockfd);
     }
     close(sockfd);
-    pthread_t thread = pthread_self();    
+    pthread_t thread = pthread_self();
+    pthread_mutex_lock(&thread_mutex);
     for (int i = 0; i < THREADS; i++){
-        pthread_mutex_lock(&thread_mutex);
         if (thread == tid[i]){
             tid_is_free[i] = 1;
             tid[i] = 0;
             pthread_mutex_unlock(&thread_mutex);
-            close(thread);
+            return NULL;
         }
-        pthread_mutex_unlock(&thread_mutex);
     }
+    pthread_mutex_unlock(&thread_mutex);
     return NULL;
 
 }
@@ -288,7 +290,7 @@ void * server(void * i){
     else{
         //printf("Socket creation: success\n");
     }
-    
+
     if (bind(sockfd, (struct sockaddr *) &this_host, sizeof(this_host)) != 0){
         //printf("Bind: fail\n");
         exit(0);
@@ -298,10 +300,7 @@ void * server(void * i){
     }
 
     pthread_t tid[20];
-    for (int i = 0; i < 20; i++){
-        tid_is_free[i] = 1;
-    } 
-    int ind = -1;
+    int ind;
     while(1){
         ind = -1;
         if (listen(sockfd, 3) != 0){
@@ -320,20 +319,22 @@ void * server(void * i){
             //printf("Accept: success\n");
         }
         while(ind == -1){
-            for(int i = 0; i < 20; i++){
-                if(tid_is_free[i]){
-                    pthread_mutex_lock(&thread_mutex);
+            for (int i = 0; i < 20; i++){
+                pthread_mutex_lock(&thread_mutex);
+                if (tid_is_free[i]){
                     ind = i;
                     tid_is_free[i] = 0;
-                    pthread_mutex_unlock(&thread_mutex);
                     break;
                 }
             }
-            usleep(100);
+            pthread_mutex_unlock(&thread_mutex);
+            usleep(50);
         }
+
         if (pthread_create(&tid[ind], NULL, clientThread, &connfd) != 0){
-            //printf("Thread creation: fail\n");
-        }   
+            printf("Thread creation: fail\n");
+        }
+        pthread_mutex_unlock(&thread_mutex);
     }
     close(sockfd);
 }
@@ -378,7 +379,6 @@ void get_my_info(char * info){
             strcat(info, ",");
         }
     }
-    printf("node info: %s\n", info);
 }
 
 void get_info(char * info, struct Node * node){
@@ -388,6 +388,7 @@ void get_info(char * info, struct Node * node){
 int ping(struct sockaddr_in server_to_call){
     printf("I want to ping server. Ip: %s. Port: %u\n", inet_ntoa(server_to_call.sin_addr), ntohs(server_to_call.sin_port)); 
     int connfd;
+    //struct sockaddr_in client;
     connfd = socket(AF_INET, SOCK_STREAM, 0);
     if (connfd < 0){
         //printf("Ping: sock creation: fail\n");
@@ -404,7 +405,7 @@ int ping(struct sockaddr_in server_to_call){
         //printf("Ping: connect: success\n");
     }
     int message = 1;
-    if (send(connfd, &message, sizeof(int), 0) == -1){
+    if (send(connfd, &message, sizeof(message), 0) == -1){
         //printf("Send 1: fail\n");
         close(connfd);
         return 1;
@@ -414,7 +415,7 @@ int ping(struct sockaddr_in server_to_call){
     }
     char my_info[BUFFER];
     get_my_info(my_info);
-    printf("\nMy info to send: %s\n", my_info);
+    //printf("%s\n\n\n", my_info);
     if (send(connfd, my_info, BUFFER, 0) == -1){
         //printf("Send node info: fail\n");
         close(connfd);
@@ -433,14 +434,12 @@ int ping(struct sockaddr_in server_to_call){
     }
     int n_nodes = numb_of_nodes;
     char node_info[BUFFER];
-    printf("Number of nodes to send is: %d\n", numb_of_nodes);
     for (int i = 0; i < n_nodes; i++){
         if (nodes[i]->addr.sin_addr.s_addr == server_to_call.sin_addr.s_addr &&
                 nodes[i]->addr.sin_port == server_to_call.sin_port){
             continue;
         }
         get_info(node_info, nodes[i]);
-        printf("\nNode info to send: %s\n", node_info);
         if (send(connfd, node_info, BUFFER, 0) == -1){
             //printf("Node %d info sending: fail\n", i);
             close(connfd);
@@ -494,14 +493,14 @@ int request_from(struct sockaddr_in server_to_call,char *file_name){
     else{
         //printf("Request: send file name %s: success\n", file_name);
     }
-    int numb_of_words = 0;
+    int numb_of_words;
     if (recv(connfd, &numb_of_words, sizeof(int), 0) == -1){
-        //printf("Request: recv numb of words: failed\n");
+        printf("Request: recv numb of words: failed\n");
         close(connfd);
         return 0;
     }
     else{
-        //printf("Request: recv numb of words: %d\n", numb_of_words);
+        printf("Request: recv numb of words: %d\n", numb_of_words);
     }
     char word[BUFFER];
     FILE *fp = NULL;
@@ -544,21 +543,21 @@ void request(char * file_name){
 }
     
 void client(){
-    char command[BUFFER];
+    int command;
     while (1){
         printf("Enter the command:\n");
-        scanf("%s", command);
-        if (strcmp(command, "exit") == 0){
+        scanf("%d", &command);
+        if (command == 1){
             exit(0);
         }
-        if (strcmp(command, "0") == 0){
+        if (command == 0){
             printf("Please enter the file name\n");
             char file_name[BUFFER];
             scanf("%s", file_name);
             request(file_name);
         }
         else{
-            printf("Incorrect command: %s\n", command);
+            printf("Incorrect command: %d\n", command);
         }
     }
 }
@@ -581,6 +580,7 @@ int main(int argc, char **argv){
         printf("Incorrect number of argumets\n");
         exit(0);
     }
+    numb_of_nodes = 0;
     strcpy(root_name, argv[1]);
     root.sin_family = AF_INET;
     root.sin_addr.s_addr = inet_addr(argv[2]);
@@ -598,11 +598,10 @@ int main(int argc, char **argv){
         struct Node * root_node = (struct Node *) malloc(sizeof(struct Node *));
         strcpy(root_node->name, root_name);
         root_node->addr = root;
-        numb_of_nodes = 1;
-        nodes[numb_of_nodes - 1] = root_node;
+        nodes[numb_of_nodes] = root_node;
+        numb_of_nodes++;
     }
     else {
-        numb_of_nodes = 0;
         printf("Yeah, I am a root\n");
     }
 
