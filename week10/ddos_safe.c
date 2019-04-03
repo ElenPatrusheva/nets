@@ -40,16 +40,19 @@ pthread_mutex_t cdb_mutex;
 pthread_mutex_t bldb_mutex;
 pthread_mutex_t thread_mutex;
 pthread_t tid[THREADS];
+
+int hash(struct sockaddr_in * addr){
+    return 0;
+}
+
+
 int in_bldb(struct sockaddr_in *client){
     pthread_mutex_lock(&bldb_mutex);
     if (bldb[hash(client)]){
-        pthread_mutex_unlock(&bldb);
+        pthread_mutex_unlock(&bldb_mutex);
         return 1;
     }
-
-
-}
-int hash(char * str){
+    pthread_mutex_unlock(&bldb_mutex);
     return 0;
 }
 
@@ -184,11 +187,6 @@ void sync_s(int sockfd){
     else{
         //printf("Node info: %s \n", client_info);
     }
-    pthread_mutex_lock(&bldb);
-    if (in_bldb(client_info)){
-        return;
-    }
-
     add_client(client_info);
     int ind;
     if(recv(sockfd, &ind, sizeof(int), 0) == -1){
@@ -335,11 +333,23 @@ void * server(void * i){
             //printf("Accept: success\n");
         }
 
-        if (in_bldb(client)){
+        struct sockaddr_in * client_in = (struct sockaddr_in *) &client;
+        if (in_bldb(client_in)){
             close(connfd);
             continue;   
         }        
-        
+        else{
+            pthread_mutex_lock(&cdb_mutex);
+            x = cdb[hash(client_in);
+            if (x > critical){
+                pthread_mutex_lock(&bldb_mutex);
+                bldb[hash(client_in)] = 1;
+                pthread_mutex_unlock(&bldb_mutex);
+                close(connfd);
+                continue;
+            }
+            if (x/////////////////////////////////////
+
         while(ind == -1){
             for (int i = 0; i < 20; i++){
                 pthread_mutex_lock(&thread_mutex);
