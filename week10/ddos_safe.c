@@ -42,12 +42,42 @@ pthread_mutex_t bldb_mutex;
 pthread_mutex_t thread_mutex;
 pthread_t tid[THREADS];
 
-int hash(struct sockaddr_in * addr){
-    return 0;
+int hash(char* node_info){
+    char tmp[BUFFER];
+    strcpy(tmp, node_info);
+    char delim[] = ":";
+    char *ptr = strtok(tmp, delim);
+    char name[HOST_NAME], ip[IP], port[PORT];
+    /*if(ptr == NULL){
+        printf("Parse node: incorrect format: %s\n", tmp);
+        return;
+    }*/
+    strcpy(name, ptr);
+    ptr = strtok(NULL, delim);
+    /*(ptr == NULL){
+        printf("Parse node: incorrect format: %s\n", tmp);
+        return;
+    }*/
+    strcpy(ip, ptr);
+    ptr = strtok(NULL, delim);
+    /*(ptr == NULL){
+        printf("Parse node: incorrect format: %s\n", tmp);
+        return;
+    }*/
+    strcpy(port, ptr);
+    char del[] = ".";
+    char ip_c[IP];
+    strcpy(ip_c, ip);
+    int res = atoi(port);
+    char *pt = strtok(ip_c, del);
+    res += atoi(pt)*10;
+    res += atoi(strtok(NULL, del))+atoi(strtok(NULL, del))*10 + atoi(strtok(NULL, del));
+    res = res % MAX_HASH;
+    return res;
 }
+/*
 
-
-int in_bldb(struct sockaddr_in *client){
+int in_bldb(char *client){
     pthread_mutex_lock(&bldb_mutex);
     if (bldb[hash(client)]){
         pthread_mutex_unlock(&bldb_mutex);
@@ -56,13 +86,16 @@ int in_bldb(struct sockaddr_in *client){
     pthread_mutex_unlock(&bldb_mutex);
     return 0;
 }
-
+*/
 int node_ind(struct Node * new_node){
     for (int i = 0; i < numb_of_nodes; i++){
+        pthread_mutex_lock(&kdb_mutex);
         if (kdb[i]->addr.sin_addr.s_addr == new_node->addr.sin_addr.s_addr && new_node->addr.sin_port == kdb[i]->addr.sin_port){
             //printf("Parse node: this node is already known\n");
+            pthread_mutex_unlock(&kdb_mutex);
             return i;
         }
+        pthread_mutex_unlock(&kdb_mutex);
     }
     return -1;
 }
@@ -112,12 +145,14 @@ void add_node(char * node_info){
     }
     int index = node_ind(new_node);
     if (index  == -1){ 
+        pthread_mutex_lock(&kdb_mutex);
         kdb[numb_of_nodes] = new_node;
         numb_of_nodes ++;
+        pthread_mutex_unlock(&kdb_mutex);
     }   
 }
 
-void add_client(char * client_info){
+void proc_client(char *client_info, char * client_addr, char* files){
     char delim[] = ":";
     char tmp[BUFFER];
     strcpy(tmp, client_info);
@@ -142,17 +177,47 @@ void add_client(char * client_info){
         return;
     }
     strcpy(port, ptr);
-    printf("Client port: %s\n", port);
-    char node_info[BUFFER];
-    ptr = strtok(NULL, delim);
+    sprintf(client_addr, "%s:%s:%s:", name, ip, port);
+
+    files = strtok(NULL, delim);
+
     int no_files = 0;
-    if (ptr == NULL){
+    if(ptr == NULL){
         no_files = 1;
         printf("No_files:\n");
     }
     else{
         printf("Files :%s\n", ptr);
     }
+}
+
+void add_client(char * client, char *files){
+    char delim[] = ":";
+    char tmp[BUFFER];
+    strcpy(tmp, client);
+    char *ptr = strtok(client, delim);
+    char name[HOST_NAME], ip[IP], port[PORT];
+    if(ptr == NULL){
+        printf("Parse node: incorrect format: %s\n", tmp ) ;
+        return;
+    }
+    strcpy(name, ptr);
+    printf("Client name: %s\n", name);
+    ptr = strtok(NULL, delim);
+    if(ptr == NULL){
+        printf("Parse node: incorrect format: %s\n", tmp);
+        return;
+    }
+    strcpy(ip, ptr);
+    printf("Client ip: %s\n", ip);
+    ptr = strtok(NULL, delim);
+    if(ptr == NULL){
+        printf("Parse node: no_files: %s\n",tmp);
+        return;
+    }
+    strcpy(port, ptr);
+    printf("Client port: %s\n", port);
+
     struct Node * new_node = (struct Node *) malloc(sizeof(struct Node));
     strcpy(new_node->name, name);
     new_node->addr.sin_family = AF_INET;
@@ -161,10 +226,9 @@ void add_client(char * client_info){
     char new_delim[] = ",";
     new_node->numb_of_files = 0;
     
-    char str[BUFFER];
-    if(! no_files){
-        strcpy(str, ptr);
-        char * new_ptr = strtok(str, new_delim);
+    if(!(files == NULL)){
+        char _files[BUFFER];
+        char * new_ptr = strtok(_files, new_delim);
         while (new_ptr != NULL){
             strcpy(new_node->files[new_node->numb_of_files], new_ptr);
             new_node->numb_of_files++;
@@ -172,12 +236,17 @@ void add_client(char * client_info){
         }
     }
     int index = node_ind(new_node);
+    
+    pthread_mutex_lock(&kdb_mutex);
+
     if (index == -1){ //no such node
         kdb[numb_of_nodes] = new_node;
         numb_of_nodes ++;
+        pthread_mutex_unlock(&kdb_mutex);
         return;
     }
     kdb[index] = new_node;
+    pthread_mutex_unlock(&kdb_mutex);
 }
 
 void sync_s(int sockfd){
@@ -188,7 +257,31 @@ void sync_s(int sockfd){
     else{
         //printf("Node info: %s \n", client_info);
     }
-    add_client(client_info);
+    char  * client;
+    char files[BUFFER];
+    int h_cl = hash(client);
+    proc_client(client_info, client, files);
+    pthread_mutex_lock(&bldb_mutex);
+    if (bldb[h_cl]){
+        close(sockfd);
+        pthread_mutex_unlock(&bldb_mutex);
+        return;     
+    }        
+    else{
+        pthread_mutex_unlock(&bldb_mutex);
+        pthread_mutex_lock(&cdb_mutex);
+        if (cdb[h_cl] > MAX_CON){
+            pthread_mutex_lock(&bldb_mutex);
+            bldb[h_cl] = 1;
+            pthread_mutex_unlock(&bldb_mutex);
+            pthread_mutex_unlock(&cdb_mutex);
+            close(sockfd);
+            return;
+        }
+        cdb[h_cl] ++;
+        pthread_mutex_unlock(&cdb_mutex);
+    }
+    add_client(client, files);
     int ind;
     if(recv(sockfd, &ind, sizeof(int), 0) == -1){
         //printf("Sync_s recv client info: failed\n");
@@ -202,6 +295,9 @@ void sync_s(int sockfd){
        recv(sockfd, node_info, BUFFER, 0);
        add_node(node_info);
     }
+    pthread_mutex_lock(&cdb_mutex);
+    cdb[hash(client_info)] --;
+    pthread_mutex_unlock(&cdb_mutex);
 }
 
 int have_file(char * file_name){
@@ -289,11 +385,7 @@ void * clientThread(void * _sockfd){
         }
         pthread_mutex_unlock(&thread_mutex);
     }
-    pthread_mutex_lock(&cdb_mutex);
-    cdb[hash(client_in)] --;
-    pthread_mutex_unlock(&cdb_mutex);
     return NULL;
-
 }
 
 void * server(void * i){
@@ -336,27 +428,6 @@ void * server(void * i){
         else{
             //printf("Accept: success\n");
         }
-
-        struct sockaddr_in * client_in = (struct sockaddr_in *) &client;
-        if (in_bldb(client_in)){
-            close(connfd);
-            continue;   
-        }        
-        else{
-            pthread_mutex_lock(&cdb_mutex);
-            int x = cdb[hash(client_in)];
-            if (x > MAX_CON){
-                pthread_mutex_lock(&bldb_mutex);
-                bldb[hash(client_in)] = 1;
-                pthread_mutex_unlock(&bldb_mutex);
-                pthread_mutex_unlock(&cdb_mutex);
-                close(connfd);
-                continue;
-            }
-            cdb[hash(client_in)] ++;
-            pthread_mutex_unlock(&cdb_mutex);
-        }
-
         while(ind == -1){
             for (int i = 0; i < 20; i++){
                 pthread_mutex_lock(&thread_mutex);
