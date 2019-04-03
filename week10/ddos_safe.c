@@ -18,6 +18,7 @@
 #define IP 16
 #define PORT 6
 #define MAX_HASH 10000
+#define MAX_CON 5
 struct sockaddr_in root, this_host;
 struct Node{
     int numb_of_files;
@@ -284,10 +285,13 @@ void * clientThread(void * _sockfd){
             tid_is_free[i] = 1;
             tid[i] = 0;
             pthread_mutex_unlock(&thread_mutex);
-            return NULL;
+            break;
         }
         pthread_mutex_unlock(&thread_mutex);
     }
+    pthread_mutex_lock(&cdb_mutex);
+    cdb[hash(client_in)] --;
+    pthread_mutex_unlock(&cdb_mutex);
     return NULL;
 
 }
@@ -340,15 +344,18 @@ void * server(void * i){
         }        
         else{
             pthread_mutex_lock(&cdb_mutex);
-            x = cdb[hash(client_in);
-            if (x > critical){
+            int x = cdb[hash(client_in)];
+            if (x > MAX_CON){
                 pthread_mutex_lock(&bldb_mutex);
                 bldb[hash(client_in)] = 1;
                 pthread_mutex_unlock(&bldb_mutex);
+                pthread_mutex_unlock(&cdb_mutex);
                 close(connfd);
                 continue;
             }
-            if (x/////////////////////////////////////
+            cdb[hash(client_in)] ++;
+            pthread_mutex_unlock(&cdb_mutex);
+        }
 
         while(ind == -1){
             for (int i = 0; i < 20; i++){
