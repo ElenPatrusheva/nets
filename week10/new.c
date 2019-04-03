@@ -29,7 +29,7 @@ struct Node{
 
 struct fd_client{
     int socket;
-    struct sockaddr_in * addr;/////////!!!!!!!!!!!
+    struct sockaddr_in addr;
 };
 char root_name[HOST_NAME];
 int tid_is_free[THREADS];
@@ -42,8 +42,8 @@ pthread_mutex_t thread_mutex;
 pthread_mutex_t kdb_mutex;
 pthread_mutex_t cdb_mutex;
 pthread_mutex_t bldb_mutex;
-struct sockaddr_in * cdb[NET_SIZE];
-struct sockaddr_in * bldb[NET_SIZE];
+struct sockaddr_in  cdb[NET_SIZE];////!!!!
+struct sockaddr_in  bldb[NET_SIZE];
 pthread_t tid[THREADS];
 int n_cdb[NET_SIZE];
 int b_n;
@@ -174,25 +174,25 @@ void add_client(char * client_info){
     }
     kdb[index] = new_node;
 }
-int in_bldb(struct sockaddr_in *client){
+int in_bldb(struct sockaddr_in client){
     for (int i = 0; i < b_n; i++){
-        if (bldb[i] == client){
+        if (bldb[i].sin_addr.s_addr == client.sin_addr.s_addr && bldb[i].sin_port == client.sin_port){
             return 1 ;
         }
     }
     return 0;
 }
 
-int ind_in_cdb(struct sockaddr_in * client){
+int ind_in_cdb(struct sockaddr_in  client){
     for (int i = 0; i < c_n; i++){
-        if (cdb[i] == client){
+        if (cdb[i].sin_addr.s_addr == client.sin_addr.s_addr && cdb[i].sin_port == client.sin_port){
             return i;
         }
     }
     return -1;
 }
 
-void sync_s(int sockfd, struct sockaddr_in *client){
+void sync_s(int sockfd, struct sockaddr_in client){
     if(in_bldb(client)){
         printf("This node in black list\n");
         return;
@@ -227,6 +227,7 @@ void sync_s(int sockfd, struct sockaddr_in *client){
     else{
         //printf("Node info: %s \n", client_info);
     }
+    add_client(client_info);
     int ind;
     if(recv(sockfd, &ind, sizeof(int), 0) == -1){
         //printf("Sync_s recv client info: failed\n");
@@ -306,7 +307,7 @@ void * clientThread(void *_cl){
     struct fd_client* cl;
     cl = (struct fd_client*)_cl;
     int sockfd = cl->socket;
-    struct sockaddr_in * client;
+    struct sockaddr_in client;
     client = cl->addr;
     //printf ("%d",sockfd);
     int command;
@@ -601,7 +602,7 @@ int ping(struct sockaddr_in server_to_call){
 void * sync_network(void * args){
     while(1){
         printf("\n");
-        sleep(5);
+        sleep(2);
         for (int i = 0; i < numb_of_nodes; i++){
             ping(kdb[i]->addr);
         }
