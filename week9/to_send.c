@@ -223,8 +223,10 @@ void recv_file_s(int sockfd){
     else{
         printf("Send numb of words: %d", numb_of_words);
     }
-
-	FILE *fp = fopen(file_name, "r");
+    if(numb_of_words<0){
+        return;
+    }
+    FILE *fp = fopen(file_name, "r");
     char word[BUFFER];
     for (int i = 0; i < numb_of_words; i++){
         fscanf(fp, "%s", word);
@@ -378,6 +380,9 @@ int request_from(struct sockaddr_in server_to_call,char *file_name){
     else{
         printf("Request: recv numb of words: %d\n", numb_of_words);
     }
+    if (numb_of_words < 0){
+        return 0;
+    }
     char word[BUFFER];
     FILE *fp = NULL;
     fp = fopen(file_name, "a");
@@ -406,14 +411,14 @@ void request(char * file_name){
         return;
     }
     for (int i = 0; i < numb_of_nodes; i++){
-        if(may_have_file(nodes[i], file_name)){
+        //if(may_have_file(nodes[i], file_name)){
             if (request_from(nodes[i]->addr, file_name) == 1){
                 strcpy(my_files[numb_of_files], file_name);
                 numb_of_files++;
                 printf("Transfering file %s from host %s\n", file_name, nodes[i]->name);
                 return;
             }
-        } 
+        //} 
     }
     printf("There is no file %s\n", file_name);
 }
@@ -526,7 +531,7 @@ int ping(struct sockaddr_in server_to_call){
 void * sync_network(void * args){
     while(1){
         printf("\n");
-        sleep(1);
+        sleep(5);
         for (int i = 0; i < numb_of_nodes; i++){
             ping(nodes[i]->addr);
         }
