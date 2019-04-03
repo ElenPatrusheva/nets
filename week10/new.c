@@ -17,7 +17,7 @@
 #define NET_SIZE 200
 #define IP 16
 #define PORT 6
-#define MAX_CON 5
+#define MAX_CON 4
 
 struct sockaddr_in root, this_host;
 struct Node{
@@ -118,21 +118,20 @@ void add_client(char * client_info){
     char *ptr = strtok(client_info, delim);
     char name[HOST_NAME], ip[IP], port[PORT];
     if(ptr == NULL){
-        printf("Parse node: incorrect format: %s\n", tmp ) ;
         return;
     }
     strcpy(name, ptr);
     printf("Client name: %s\n", name);
     ptr = strtok(NULL, delim);
     if(ptr == NULL){
-        printf("Parse node: incorrect format: %s\n", tmp);
+        printf("Parse client: incorrect format: %s\n", tmp);
         return;
     }
     strcpy(ip, ptr);
     printf("Client ip: %s\n", ip);
     ptr = strtok(NULL, delim);
     if(ptr == NULL){
-        printf("Parse node: no_files: %s\n",tmp);
+        printf("Parse client: incorrect format: %s\n", tmp);
         return;
     }
     strcpy(port, ptr);
@@ -176,7 +175,7 @@ void add_client(char * client_info){
 }
 int in_bldb(struct sockaddr_in client){
     for (int i = 0; i < b_n; i++){
-        if (bldb[i].sin_addr.s_addr == client.sin_addr.s_addr && bldb[i].sin_port == client.sin_port){
+        if (bldb[i].sin_addr.s_addr == client.sin_addr.s_addr/* && bldb[i].sin_port == client.sin_port*/){
             return 1 ;
         }
     }
@@ -185,7 +184,7 @@ int in_bldb(struct sockaddr_in client){
 
 int ind_in_cdb(struct sockaddr_in  client){
     for (int i = 0; i < c_n; i++){
-        if (cdb[i].sin_addr.s_addr == client.sin_addr.s_addr && cdb[i].sin_port == client.sin_port){
+        if (cdb[i].sin_addr.s_addr == client.sin_addr.s_addr/* && cdb[i].sin_port == client.sin_port*/){
             return i;
         }
     }
@@ -222,6 +221,10 @@ void sync_s(int sockfd, struct sockaddr_in client){
     }
     char client_info[BUFFER];
     if(recv(sockfd, client_info, BUFFER, 0) == -1){
+        pthread_mutex_lock(&cdb_mutex);
+        n_cdb[x] --;
+        pthread_mutex_unlock(&cdb_mutex);
+        return;
         //printf("Sync_s recv client info: failed\n");
     }
     else{
@@ -230,6 +233,10 @@ void sync_s(int sockfd, struct sockaddr_in client){
     add_client(client_info);
     int ind;
     if(recv(sockfd, &ind, sizeof(int), 0) == -1){
+        pthread_mutex_lock(&cdb_mutex);
+        n_cdb[x] --;
+        pthread_mutex_unlock(&cdb_mutex);
+        return;
         //printf("Sync_s recv client info: failed\n");
     }
     else{
@@ -238,8 +245,13 @@ void sync_s(int sockfd, struct sockaddr_in client){
     //printf("Number recieved: %d\n", ind);
     char node_info[BUFFER];
     for (int i = 0; i < ind; i++){
-       recv(sockfd, node_info, BUFFER, 0);
-       add_node(node_info);
+        if (recv(sockfd, node_info, BUFFER, 0) == -1){
+            pthread_mutex_lock(&cdb_mutex);
+            n_cdb[x] --;
+            pthread_mutex_unlock(&cdb_mutex);
+            return;
+        }           
+        add_node(node_info);
     }
     pthread_mutex_lock(&cdb_mutex);
     n_cdb[x] --;
@@ -387,7 +399,6 @@ void * server(void * i){
                 if (tid_is_free[i]){
                     ind = i;
                     tid_is_free[i] = 0;
-                    pthread_mutex_unlock(&thread_mutex);
                     break;
                 }
             }
@@ -400,7 +411,10 @@ void * server(void * i){
         cl->socket = connfd;
         if (pthread_create(&tid[ind], NULL, clientThread, cl) != 0){
             printf("Thread creation: fail\n");
+            pthread_mutex_unlock(&thread_mutex);
         }
+        pthread_mutex_unlock(&thread_mutex);
+        
     }
     close(sockfd);
 
