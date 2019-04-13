@@ -165,8 +165,10 @@ void add_client(char * client_info){
     if (index == -1){ //no such node
         kdb[numb_of_nodes] = new_node;
         numb_of_nodes ++;
+        pthread_mutex_unlock(&kdb_mutex);
         return;
     }
+    pthread_mutex_unlock(&kdb_mutex);
     kdb[index] = new_node;
 }
 void sync_s(int sockfd, struct sockaddr_in client){
@@ -227,6 +229,8 @@ void recv_file_s(int sockfd){
     if(!have_file(file_name)){
         printf("Have no file, naimed: %s\n", file_name);
         close(sockfd);
+        int numb_of_words = -1;
+        send(sockfd, &numb_of_words, sizeof(int), 0);
         return;
     }
     int numb_of_words = get_numb_of_words(file_name);
@@ -449,21 +453,22 @@ void request(char * file_name){
     }
     printf("There is no file %s\n", file_name);
 }   
-char * get_files (struct Node * node){
-    char *files;
+void get_files (struct Node * node, char *files){
+    sprintf(files, "");
     for (int i = 0; i < node->numb_of_files; i++){
         strcat(files, node->files[i]);
         strcat(files, ", ");
     }
-    return(files);
 }
 
 void print_nodes(){
-    pthread_mutex_lock(&kdb_mutex);
+    //pthread_mutex_lock(&kdb_mutex);
+    char info [BUFFER];
     for (int i = 0; i < numb_of_nodes; i++){
-        //printf("Name: %s, Ip: %s, Port: %u, files:%s\n", kdb[i]->name, inet_ntoa(kdb[i]->addr.sin_addr), ntohs(kdb[i]->addr.sin_port), get_files(kdb[i]));
+        get_files(kdb[i], info);
+        printf("Name: %s, Ip: %s, Port: %u, files:%s\n", kdb[i]->name, inet_ntoa(kdb[i]->addr.sin_addr), ntohs(kdb[i]->addr.sin_port), info);
     }
-    pthread_mutex_unlock(&kdb_mutex);
+    //pthread_mutex_unlock(&kdb_mutex);
 }
 
 void client(){
@@ -663,4 +668,4 @@ int main(int argc, char **argv){
         printf("Synchronization thread creation: success\n");
     }
     client();
-}
+
