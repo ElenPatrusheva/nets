@@ -117,30 +117,30 @@ void add_client(char * client_info){
         return;
     }
     strcpy(name, ptr);
-    printf("Client name: %s\n", name);
+    //printf("Client name: %s\n", name);
     ptr = strtok(NULL, delim);
     if(ptr == NULL){
         printf("Parse client: incorrect format: %s\n", tmp);
         return;
     }
     strcpy(ip, ptr);
-    printf("Client ip: %s\n", ip);
+    //printf("Client ip: %s\n", ip);
     ptr = strtok(NULL, delim);
     if(ptr == NULL){
         printf("Parse client: incorrect format: %s\n", tmp);
         return;
     }
     strcpy(port, ptr);
-    printf("Client port: %s\n", port);
+    //printf("Client port: %s\n", port);
     char node_info[BUFFER];
     ptr = strtok(NULL, delim);
     int no_files = 0;
     if (ptr == NULL){
         no_files = 1;
-        printf("No_files:\n");
+        //printf("No_files:\n");
     }
     else{
-        printf("Files :%s\n", ptr);
+        //printf("Files :%s\n", ptr);
     }
     struct Node * new_node = (struct Node *) malloc(sizeof(struct Node));
     strcpy(new_node->name, name);
@@ -269,10 +269,10 @@ void * clientThread(void *_cl){
     else{ 
         //printf("Recv command from client: success\n");  
     }
-    command = ntohl(command);
-    printf ("%d\n", command);
+    //command = ntohl(command);
+    //printf ("%d\n", command);
     if (command == 1){
-        printf("1\n");
+        //printf("1\n");
         sync_s(sockfd, client);
     }
     else if(command == 0){
@@ -461,7 +461,7 @@ char * get_files (struct Node * node){
 void print_nodes(){
     pthread_mutex_lock(&kdb_mutex);
     for (int i = 0; i < numb_of_nodes; i++){
-        printf("Name: %s, Ip: %s, Port: %u, files:%s\n", kdb[i]->name, inet_ntoa(kdb[i]->addr.sin_addr), ntohs(kdb[i]->addr.sin_port), get_files(kdb[i]));
+        //printf("Name: %s, Ip: %s, Port: %u, files:%s\n", kdb[i]->name, inet_ntoa(kdb[i]->addr.sin_addr), ntohs(kdb[i]->addr.sin_port), get_files(kdb[i]));
     }
     pthread_mutex_unlock(&kdb_mutex);
 }
@@ -504,7 +504,7 @@ void get_info(char * info, struct Node * node){
 }
 
 int ping(struct sockaddr_in server_to_call){
-    printf("I want to ping server. Ip: %s. Port: %u\n", inet_ntoa(server_to_call.sin_addr), ntohs(server_to_call.sin_port)); 
+    //printf("I want to ping server. Ip: %s. Port: %u\n", inet_ntoa(server_to_call.sin_addr), ntohs(server_to_call.sin_port)); 
     int connfd;
     //struct sockaddr_in client;
     connfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -534,7 +534,7 @@ int ping(struct sockaddr_in server_to_call){
     char my_info[BUFFER];
     get_my_info(my_info);
     //printf("%s\n\n\n", my_info);
-    printf("MY info is: %s\n", my_info);
+    //printf("MY info is: %s\n", my_info);
     if (send(connfd, my_info, BUFFER, 0) == -1){
         //printf("Send node info: fail\n");
         close(connfd);
@@ -556,7 +556,7 @@ int ping(struct sockaddr_in server_to_call){
     for (int i = 0; i < n_nodes; i++){
         
         get_info(node_info, kdb[i]);
-        printf("Node number %d info is:%s\n", i, node_info);
+        //printf("Node number %d info is:%s\n", i, node_info);
         /*if (nodes[i]->addr.sin_addr.s_addr == server_to_call.sin_addr.s_addr &&
                 nodes[i]->addr.sin_port == server_to_call.sin_port){
             continue;
@@ -576,7 +576,7 @@ int ping(struct sockaddr_in server_to_call){
 
 void * sync_network(void * args){
     while(1){
-        printf("\n");
+        //printf("\n");
         sleep(3);
         for (int i = 0; i < numb_of_nodes; i++){
             ping(kdb[i]->addr);
