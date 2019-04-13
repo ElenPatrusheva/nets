@@ -228,9 +228,9 @@ void recv_file_s(int sockfd){
     recv(sockfd, file_name, BUFFER, 0);
     if(!have_file(file_name)){
         printf("Have no file, naimed: %s\n", file_name);
-        close(sockfd);
         int numb_of_words = -1;
         send(sockfd, &numb_of_words, sizeof(int), 0);
+        close(sockfd);
         return;
     }
     int numb_of_words = get_numb_of_words(file_name);
@@ -242,7 +242,7 @@ void recv_file_s(int sockfd){
     else{
         //printf("Send numb of words: %d", numb_of_words);
     }
-    if(numb_of_words<0){
+    if(numb_of_words <= 0){
         return;
     }
     FILE *fp = fopen(file_name, "r");
@@ -409,9 +409,10 @@ int request_from(struct sockaddr_in server_to_call,char *file_name){
         return 0;
     }
     else{
-        //printf("Request: recv numb of words: %d\n", numb_of_words);
+        printf("Request: recv numb of words: %d\n", numb_of_words);
     }
-    if (numb_of_words < 0){
+    if (numb_of_words <= 0){
+        close(connfd);
         return 0;
     }
     char word[BUFFER];
@@ -421,7 +422,7 @@ int request_from(struct sockaddr_in server_to_call,char *file_name){
         recv(connfd, word, BUFFER, 0);
         fprintf(fp, word);
         fprintf(fp, " "); 
-        printf("%s\n", word);  
+        //printf("%s\n", word);  
     } 
     fclose(fp);
     return 1;
@@ -668,4 +669,4 @@ int main(int argc, char **argv){
         printf("Synchronization thread creation: success\n");
     }
     client();
-
+}
